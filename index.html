@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Матрица судьбы — калькулятор v4</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#f4ead8;
+  color:#18212a;
+  font-family:Arial,Helvetica,sans-serif;
+}
+.page{max-width:1180px;margin:auto;padding:18px}
+.card{
+  background:rgba(255,250,241,.96);
+  border-radius:24px;
+  padding:18px;
+  box-shadow:0 12px 35px rgba(55,45,30,.13);
+}
+h1{text-align:center;margin:0 0 14px;font-size:28px}
+.controls{
+  display:flex;justify-content:center;align-items:end;gap:10px;
+  flex-wrap:wrap;margin-bottom:8px
+}
+.controls + #status{margin-top:6px}
+.keyPoints{
+  display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));
+  gap:14px;margin:34px auto 34px;max-width:1000px;
+}
+.keyPoint{
+  background:#fff;border:1px solid #d5d8d3;border-radius:16px;
+  padding:13px 10px 12px;text-align:center;
+  box-shadow:0 5px 16px rgba(55,45,30,.08);
+}
+.keyPoint .kpTitle{font-size:13px;line-height:1.25;color:#59615e;min-height:34px;display:flex;align-items:center;justify-content:center}
+.keyPoint .kpValue{font-size:31px;line-height:1;font-weight:700;color:#203f38;margin-top:8px}
+.keyPoint .kpArcan{font-size:11px;color:#777;margin-top:6px}
+.chart{width:100%;overflow:hidden;margin-top:4px}
+.controls label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+input{
+  width:220px;height:45px;border:1px solid #c7c9c5;border-radius:10px;
+  background:#fff;color:#222;padding:0 12px;font-size:17px
+}
+button{
+  height:45px;border:0;border-radius:10px;padding:0 20px;
+  background:#203f38;color:#fff;font-size:16px;font-weight:700;cursor:pointer
+}
+button:hover{filter:brightness(1.08)}
+#status{text-align:center;min-height:22px;font-size:13px;color:#666}
+.chart{width:100%;overflow:hidden}
+svg{display:block;width:100%;height:auto}
+.legend{
+  margin:10px auto 0;max-width:900px;text-align:center;font-size:12px;color:#777
+}
+.disclaimer{
+  margin:28px auto 0;max-width:900px;text-align:center;font-size:12px;line-height:1.5;color:#888
+}
+@media(max-width:800px){
+  .keyPoints{grid-template-columns:repeat(2,minmax(130px,1fr));}
+}
+@media(max-width:600px){
+  .page{padding:8px}.card{padding:10px;border-radius:16px}h1{font-size:22px}
+  input{width:200px}.controls{gap:7px}
+  .keyPoints{grid-template-columns:1fr 1fr;gap:9px;margin:28px auto 28px}
+  .keyPoint{padding:11px 7px}.keyPoint .kpTitle{font-size:12px}.keyPoint .kpValue{font-size:27px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+<div class="card">
+<h1>Матрица судьбы</h1>
+
+<div class="controls">
+  <div>
+    <label for="birth">Дата рождения</label>
+    <input id="birth" type="date" value="">
+  </div>
+  <button type="button" onclick="calculate()">Рассчитать</button>
+</div>
+
+<div id="status">Введите дату рождения</div>
+
+<div class="keyPoints" id="keyPoints">
+  <div class="keyPoint"><div class="kpTitle">Личность</div><div class="kpValue">—</div><div class="kpArcan">—</div></div>
+  <div class="keyPoint"><div class="kpTitle">Таланты / связь с высшим</div><div class="kpValue">—</div><div class="kpArcan">—</div></div>
+  <div class="keyPoint"><div class="kpTitle">Задачи души</div><div class="kpValue">—</div><div class="kpArcan">—</div></div>
+  <div class="keyPoint"><div class="kpTitle">Главная проработка</div><div class="kpValue">—</div><div class="kpArcan">—</div></div>
+  <div class="keyPoint"><div class="kpTitle">Зона комфорта</div><div class="kpValue">—</div><div class="kpArcan">—</div></div>
+</div>
+
+<div class="chart">
+<svg id="matrix" viewBox="0 0 1100 1120" preserveAspectRatio="xMidYMid meet" style="width:111%;margin-left:-5.5%;"></svg>
+</div>
+
+
+<div class="disclaimer">Расчёт носит развлекательный характер и не является научно обоснованным.</div>
+</div>
+</div>
+
+<script>
+/* 22 Аркана в используемой в макете системе */
+const ARCANS = {
+  1:"Маг", 2:"Жрица", 3:"Императрица", 4:"Император", 5:"Иерофант",
+  6:"Влюблённые", 7:"Колесница", 8:"Справедливость", 9:"Отшельник",
+  10:"Колесо Фортуны", 11:"Сила", 12:"Повешенный", 13:"Смерть",
+  14:"Умеренность", 15:"Дьявол", 16:"Башня", 17:"Звезда", 18:"Луна",
+  19:"Солнце", 20:"Суд", 21:"Мир", 22:"Шут"
+};
+
+function reduce22(n){
+  n=Math.abs(Number(n)||0);
+  while(n>22){
+    n=String(n).split("").reduce((s,x)=>s+Number(x),0);
+  }
+  return n===0?22:n;
+}
+
+function sumDigits(n){
+  return String(n).replace(/\D/g,"").split("").reduce((s,x)=>s+Number(x),0);
+}
+
+/*
+  Расчёт базовых точек.
+  Визуальная схема повторяет расположение из предоставленного изображения.
+*/
+function matrixValues(date){
+  const [y,m,d]=date.split("-").map(Number);
+
+  // Базовые точки по схеме Матрицы Судьбы:
+  // A — день (слева), C — месяц (сверху), E — год (справа),
+  // G — нижняя точка, I — центр.
+  const A = reduce22(d);
+  const C = reduce22(m);
+  const E = reduce22(sumDigits(y));
+  const G = reduce22(A + C + E);
+  const I = reduce22(A + C + E + G);
+
+  // Родовой квадрат.
+  const B = reduce22(A + C); // верхний левый
+  const D = reduce22(C + E); // верхний правый
+  const F = reduce22(E + G); // нижний правый
+  const H = reduce22(G + A); // нижний левый
+
+  // Внутренние точки по принципу «точка между двумя соседними = их сумма».
+  // Мужская линия / верхний левый сектор.
+  const O1 = reduce22(I + B);
+  const O2 = reduce22(O1 + B);
+
+  // Женская линия / верхний правый сектор.
+  const M1 = reduce22(I + D);
+  const M2 = reduce22(M1 + D);
+
+  // Женская линия / нижний левый сектор.
+  const M3 = reduce22(I + H);
+  const M4 = reduce22(M3 + H);
+
+  // Мужская линия / нижний правый сектор.
+  const O3 = reduce22(I + F);
+  const O4 = reduce22(O3 + F);
+
+  // Верхняя вертикаль (таланты) по классической цепочке канала:
+  // вершина месяца → средняя точка → внутренняя точка → центр.
+  // Внутренняя точка = месяц + центр.
+  // Средняя точка = месяц + внутренняя точка.
+  const T1 = reduce22(C + I);       // внутренняя точка
+  const T2 = reduce22(C + T1);      // средняя точка
+
+  // Левая горизонталь (детско-родительская линия).
+  const D1 = reduce22(A + I);
+  const D2 = reduce22(D1 + A);
+
+  // Нижняя вертикаль (кармический хвост).
+  const KH1 = reduce22(G + I);
+  const KH2 = reduce22(KH1 + G);
+
+  // Правая горизонталь (материальная/денежная часть).
+  const MK1 = reduce22(E + I);
+  const MK2 = reduce22(MK1 + E);
+
+  // Линия благополучия: деньги + отношения.
+  const TP = reduce22(MK1 + KH1);
+  const CF = reduce22(TP + MK1);
+  const CO = reduce22(TP + KH1);
+
+  // Анахата — дополнительные две точки.
+  const A1 = reduce22(I + T1);
+  const A2 = reduce22(I + D1);
+
+  return {
+    A,C,E,G,I,B,D,F,H,
+    O1,O2,O3,O4,M1,M2,M3,M4,
+    T1,T2,D1,D2,KH1,KH2,MK1,MK2,TP,CF,CO,A1,A2,
+    day:A, month:C, year:E, center:I,
+    top:C, left:A, right:E, bottom:G,
+    tl:B, tr:D, br:F, bl:H
+  };
+}
+
+// Возрастное кольцо: 8 опорных точек и 7 промежуточных значений
+// в каждом десятилетии. Значения строятся тем же правилом суммы соседей.
+function ageRingValues(v){
+  // Опорные точки возрастного кольца по классической схеме:
+  // 0=A, 10=F, 20=B, 30=G, 40=C, 50=H, 60=D, 70=I.
+  const anchors=[v.A,v.B,v.C,v.D,v.E,v.F,v.G,v.H];
+  const all=[];
+  for(let i=0;i<8;i++){
+    const a=anchors[i], b=anchors[(i+1)%8];
+    const p5=reduce22(a+b);
+    const p25=reduce22(a+p5);
+    const p75=reduce22(p5+b);
+    const p125=reduce22(a+p25);
+    const p375=reduce22(p25+p5);
+    const p625=reduce22(p5+p75);
+    const p875=reduce22(p75+b);
+    all.push(a,p125,p25,p375,p5,p625,p75,p875);
+  }
+  return all;
+}
+
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+}
+
+function node(x,y,n,r,fill="#fff",stroke="#182b27",txt="#17211f",sw=3){
+  return `
+    <circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>
+    <text x="${x}" y="${y+1}" class="nodeText" fill="${txt}">${n}</text>`;
+}
+
+function label(x,y,text,size=13,fill="#25302e",anchor="middle",weight="400"){
+  return `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" text-anchor="${anchor}" font-weight="${weight}">${esc(text)}</text>`;
+}
+
+function updateKeyPoints(v){
+  const items=[
+    [v.A, "Личность"],
+    [v.C, "Таланты / связь с высшим"],
+    [v.E, "Задачи души"],
+    [v.G, "Главная проработка"],
+    [v.I, "Зона комфорта"]
+  ];
+  const root=document.getElementById("keyPoints");
+  root.innerHTML=items.map(([n,title])=>`<div class="keyPoint"><div class="kpTitle">${title}</div><div class="kpValue">${n}</div><div class="kpArcan">${n === "?" ? "—" : esc(ARCANS[n])}</div></div>`).join("");
+}
+
+function calculate(){
+  const date=document.getElementById("birth").value;
+  if(!date){
+    document.getElementById("status").textContent="Введите дату рождения";
+    drawEmpty();
+    return;
+  }
+  const v=matrixValues(date);
+  document.getElementById("status").innerHTML=
+    `${date.split("-").reverse().join(".")} · центр: <b>${v.I} — ${ARCANS[v.I]}</b>
+     <br><small>Слева ${v.A} · сверху ${v.C} · справа ${v.E} · снизу ${v.G} &nbsp;|&nbsp;
+     углы: ${v.B} · ${v.D} · ${v.F} · ${v.H}</small>`;
+  updateKeyPoints(v);
+  draw(v);
+}
+
+function drawEmpty(){
+  updateKeyPoints({A:"?",C:"?",E:"?",G:"?",I:"?"});
+  draw({
+  A:"?",C:"?",E:"?",G:"?",I:"?",B:"?",D:"?",F:"?",H:"?",
+  O1:"?",O2:"?",O3:"?",O4:"?",M1:"?",M2:"?",M3:"?",M4:"?",
+  T1:"?",T2:"?",D1:"?",D2:"?",KH1:"?",KH2:"?",MK1:"?",MK2:"?",
+  TP:"?",CF:"?",CO:"?",A1:"?",A2:"?"
+});}
+
+function draw(v){
+  const svg=document.getElementById("matrix");
+
+  const outer=[
+    [550,54,"20"],[825,174,"30"],[1035,550,"40"],[825,925,"50"],
+    [550,1045,"60"],[275,925,"70"],[65,550,"0"],[275,174,"10"]
+  ];
+
+  /* Значения возрастного кольца рассчитываются из опорных точек. */
+  const ringNums=ageRingValues(v);
+
+  let out=`
+  <defs>
+    <radialGradient id="green" cx="50%" cy="48%" r="65%">
+      <stop offset="0%" stop-color="#27745f"/>
+      <stop offset="62%" stop-color="#174e40"/>
+      <stop offset="100%" stop-color="#0c332a"/>
+    </radialGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <style>
+    .nodeText{font-family:Arial,Helvetica,sans-serif;font-size:27px;font-weight:500;text-anchor:middle;dominant-baseline:middle}
+    .smallNode{font-size:21px}
+    .outerAge{font-family:Arial,sans-serif;font-size:14px;fill:#202a29;text-anchor:middle}
+    .ringNum{font-family:Arial,sans-serif;font-size:13px;font-weight:700;fill:#252b2a;text-anchor:middle}
+    .tiny{font-family:Arial,sans-serif;font-size:10px;fill:#555;text-anchor:middle}
+  </style>
+
+  <!-- Светлый внешний контур -->
+  <polygon points="550,45 1000,550 550,1050 100,550"
+           fill="#eef1eb" stroke="#a9b1ab" stroke-width="8"/>
+
+  <!-- Тёмная внутренняя область -->
+  <polygon points="550,110 920,550 550,990 180,550"
+           fill="url(#green)" stroke="#142c27" stroke-width="7"/>
+
+  <!-- Внутренний прямоугольник/ромб как в примере -->
+  <polygon points="550,200 820,470 820,820 550,910 280,820 280,470"
+           fill="none" stroke="#172e29" stroke-width="3"/>
+
+  <!-- Возрастное кольцо -->
+  <circle cx="550" cy="550" r="462" fill="none" stroke="#9ba59f" stroke-width="5"/>
+  <circle cx="550" cy="550" r="444" fill="none" stroke="#cad0ca" stroke-width="2"/>
+
+  <!-- основные оси -->
+  <line x1="550" y1="108" x2="550" y2="992" stroke="#b7cec3" stroke-width="3"/>
+  <line x1="108" y1="550" x2="992" y2="550" stroke="#b7cec3" stroke-width="3"/>
+
+  <!-- диагонали рода -->
+  <line x1="205" y1="205" x2="895" y2="895" stroke="#747fd2" stroke-width="2.5"/>
+  <line x1="895" y1="205" x2="205" y2="895" stroke="#c37f9d" stroke-width="2.5"/>
+
+  <!-- стрелки -->
+  <path d="M330 330 L205 205 M205 205 L218 208 M205 205 L208 218"
+        stroke="#737cc8" fill="none" stroke-width="2"/>
+  <path d="M770 330 L895 205 M895 205 L882 208 M895 205 L892 218"
+        stroke="#c37f9d" fill="none" stroke-width="2"/>
+  <path d="M330 770 L205 895 M205 895 L208 882 M205 895 L218 892"
+        stroke="#c37f9d" fill="none" stroke-width="2"/>
+  <path d="M770 770 L895 895 M895 895 L882 892 M895 895 L892 882"
+        stroke="#747cc9" fill="none" stroke-width="2"/>
+
+  <!-- подписи рода: размещены вдоль цветных диагоналей,
+       между центральной точкой и верхними родовыми точками.
+       Цветные линии пересечения сохраняются полностью. -->
+  <text x="405" y="475" fill="#f1f5f2" font-size="15"
+        transform="rotate(43 405 475)" text-anchor="middle"
+        dominant-baseline="middle"
+        style="paint-order:stroke;stroke:#174e40;stroke-width:2px;stroke-opacity:.35">
+    линия мужского рода
+  </text>
+  <text x="695" y="475" fill="#f1f5f2" font-size="15"
+        transform="rotate(-43 695 475)" text-anchor="middle"
+        dominant-baseline="middle"
+        style="paint-order:stroke;stroke:#174e40;stroke-width:2px;stroke-opacity:.35">
+    линия женского рода
+  </text>
+
+  <!-- внешний возрастной маркер -->
+  `;
+
+  /* Точки внешнего кольца */
+  for(let i=0;i<72;i++){
+    const a=(180+i*5)*Math.PI/180;
+    const r=444;
+    const x=550+r*Math.cos(a), y=550+r*Math.sin(a);
+    out+=`<circle cx="${x}" cy="${y}" r="${i%6===0?4.2:2.8}" fill="${i%6===0?"#fff":"#3d4844"}" stroke="${i%6===0?"#65706b":"none"}" stroke-width="1.5"/>`;
+  }
+
+  /* Номера вокруг кольца — 64 значения: 8 десятилетий × 8 точек. */
+  for(let i=0;i<ringNums.length;i++){
+    const a=(180+i*(360/ringNums.length))*Math.PI/180;
+    const r=488;
+    const x=550+r*Math.cos(a), y=550+r*Math.sin(a);
+    out+=`<text x="${x}" y="${y}" class="ringNum">${ringNums[i]}</text>`;
+  }
+
+  /* Возрастные опорные точки: 0, 10, ..., 70. */
+  outer.forEach(([x,y,t])=>{
+    out+=`<text x="${x}" y="${y}" class="outerAge">${t}<tspan x="${x}" dy="15">лет</tspan></text>`;
+  });
+
+  /* Подписи промежуточных возрастов. */
+  const ageLabels=[
+    "1–2,5","2,5–3,5","3,5–4","5 лет","6–7,5","7,5–8,5","8,5–10",
+    "11–12,5","12,5–13,5","13,5–15","15 лет","16–17,5","17,5–18,5","18,5–20",
+    "21–22,5","22,5–23,5","23,5–24","25 лет","26–27,5","27,5–28,5","28,5–30",
+    "31–32,5","32,5–33,5","33,5–34","35 лет","36–37,5","37,5–38,5","38,5–39",
+    "41–42,5","42,5–43,5","43,5–44","45 лет","46–47,5","47,5–48,5","48,5–49",
+    "51–52,5","52,5–53,5","53,5–54","55 лет","56–57,5","57,5–58,5","58,5–59",
+    "61–62,5","62,5–63,5","63,5–64","65 лет","66–67,5","67,5–68,5","68,5–69",
+    "71–72,5","72,5–73,5","73,5–74","75 лет","76–77,5","77,5–78,5","78,5–79"
+  ];
+  let ageLabelIndex=0;
+  for(let decade=0;decade<8;decade++){
+    const startAngle=180+decade*45;
+    for(let j=1;j<8;j++){
+      const a=(startAngle+j*5)*Math.PI/180;
+      const r=405;
+      const x=550+r*Math.cos(a), y=550+r*Math.sin(a);
+      out+=`<text x="${x}" y="${y}" class="tiny">${ageLabels[ageLabelIndex++]}</text>`;
+    }
+  }
+
+  /* Главные точки — в точности по фото 24.08.1997:
+     слева = день, сверху = месяц, справа = год, снизу = сумма трёх. */
+  out+=node(550,135,v.C,58,"#7041a4","#7041a4","#fff");
+  out+=node(150,550,v.A,58,"#6f43a7","#6f43a7","#fff");
+  out+=node(950,550,v.E,58,"#d9473e","#d9473e","#fff");
+  out+=node(550,940,v.G,58,"#d9473e","#d9473e","#fff");
+  out+=node(550,550,v.I,66,"#f4df19","#f4df19","#17211f",2);
+
+  /* Вертикаль талантов: месяц → средняя → внутренняя → центр. */
+  out+=node(550,260,v.T2,31,"#337ae0","#337ae0","#fff");
+  out+=node(550,325,v.T1,29,"#3aa6bf","#3aa6bf","#fff");
+  out+=node(550,390,v.A1,29,"#64bd51","#64bd51","#fff");
+  out+=node(550,800,v.KH1,27,"#e9a234","#e9a234","#fff");
+  out+=node(550,870,v.KH2,31,"#fff","#26312f","#17211f");
+
+  /* Горизонталь: 6 → 20 → 14 → 22 → 8; 8 → 16 → 6 → 8. */
+  out+=node(225,550,v.D2,29,"#3e70d6","#3e70d6","#fff");
+  out+=node(300,550,v.D1,25,"#69c0ca","#69c0ca","#fff");
+  out+=node(385,550,v.A2,28,"#5dbb4b","#5dbb4b","#fff");
+  out+=node(715,550,v.MK1,28,"#f0a82e","#f0a82e","#fff");
+  out+=node(790,550,v.MK2,29,"#fff","#26312f","#17211f");
+
+  /* Внешние углы родового квадрата. */
+  out+=node(260,260,v.B,45,"#fff","#26312f","#17211f");
+  out+=node(840,260,v.D,45,"#fff","#26312f","#17211f");
+  out+=node(840,840,v.F,45,"#fff","#26312f","#17211f");
+  out+=node(260,840,v.H,45,"#fff","#26312f","#17211f");
+
+  /* Внутренние родовые цепочки. */
+  out+=node(335,335,v.O2,25,"#fff","#26312f","#17211f");
+  out+=node(395,395,v.O1,25,"#fff","#26312f","#17211f");
+
+  out+=node(765,335,v.M2,25,"#fff","#26312f","#17211f");
+  out+=node(705,395,v.M1,25,"#fff","#26312f","#17211f");
+
+  out+=node(395,705,v.M3,25,"#fff","#26312f","#17211f");
+  out+=node(335,765,v.M4,25,"#fff","#26312f","#17211f");
+
+
+  /* Нижняя правая зона.
+     Важная геометрия по образцу: от угловой точки 3 движение идёт
+     строго по диагонали к центру в порядке 3 → 14 → 11. */
+  out+=`<line x1="840" y1="840" x2="735" y2="735" stroke="#72827d" stroke-width="2" stroke-dasharray="6 8" opacity="0.55"/>`;
+  /* Три расчётные точки перенесены на пунктирную линию 3 → 16.
+     Значения по-прежнему берутся из формул: 22=CO, 19=TP, 8=CF. */
+  out+=`<line x1="550" y1="800" x2="715" y2="550" stroke="#e9a234" stroke-width="2" stroke-dasharray="6 7" opacity="0.75"/>`;
+  out+=node(591.25,737.5,v.CO,20,"#fff","#26312f","#17211f",2);
+  out+=node(632.5,675,v.TP,20,"#fff","#26312f","#17211f",2);
+  out+=node(673.75,612.5,v.CF,20,"#fff","#26312f","#17211f",2);
+  /* 3 → 14 → 11 — одна прямая, направленная к центру */
+  out+=node(840,840,v.F,45,"#fff","#26312f","#17211f",3);
+  out+=node(790,790,v.O4,20,"#fff","#26312f","#17211f",2);
+  out+=node(740,740,v.O3,20,"#fff","#26312f","#17211f",2);
+
+
+  svg.innerHTML=out;
+}
+
+drawEmpty();
+</script>
+</body>
+</html>
