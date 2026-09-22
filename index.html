@@ -66,6 +66,27 @@ svg{display:block;width:100%;height:auto}
   .keyPoints{grid-template-columns:1fr 1fr;gap:9px;margin:28px auto 28px}
   .keyPoint{padding:11px 7px}.keyPoint .kpTitle{font-size:12px}.keyPoint .kpValue{font-size:27px}
 }
+
+/* Tooltip for Arcana names */
+.arcanTip{
+  position:fixed;
+  z-index:9999;
+  background:#fff;
+  border:2px solid #203f38;
+  border-radius:8px;
+  padding:6px 12px;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:13px;
+  font-weight:600;
+  color:#203f38;
+  box-shadow:0 4px 14px rgba(0,0,0,.22);
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .18s;
+  white-space:nowrap;
+  line-height:1.3;
+}
+.arcanTip.show{opacity:1}
 </style>
 </head>
 <body>
@@ -109,6 +130,7 @@ svg{display:block;width:100%;height:auto}
 </div>
 
 <div class="disclaimer">Расчёт носит развлекательный характер и не является научно обоснованным.</div>
+<div class="arcanTip" id="arcanTip"></div>
 </div>
 </div>
 
@@ -237,9 +259,12 @@ function esc(s){
 }
 
 function node(x,y,n,r,fill="#fff",stroke="#182b27",txt="#17211f",sw=3){
+  const aName=(n!=="?"&&ARCANS[n])?n+" \u2014 "+esc(ARCANS[n]):String(n);
   return `
+    <g class="arcanNode" data-arcan="${esc(aName)}" style="cursor:pointer">
     <circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>
-    <text x="${x}" y="${y+1}" class="nodeText" fill="${txt}">${n}</text>`;
+    <text x="${x}" y="${y+1}" class="nodeText" fill="${txt}">${n}</text>
+    </g>`;
 }
 
 function label(x,y,text,size=13,fill="#25302e",anchor="middle",weight="400"){
@@ -465,6 +490,30 @@ function draw(v){
 
 
   svg.innerHTML=out;
+  attachNodeClicks();
+}
+
+function attachNodeClicks(){
+  const tip=document.getElementById("arcanTip");
+  let tipTimer=null;
+  document.querySelectorAll(".arcanNode").forEach(g=>{
+    g.addEventListener("click",function(e){
+      const name=this.getAttribute("data-arcan");
+      if(!name||name==="?")return;
+      tip.textContent=name;
+      tip.classList.add("show");
+      const tw=tip.offsetWidth, th=tip.offsetHeight;
+      let x=e.clientX+12, y=e.clientY-th-8;
+      if(x+tw>window.innerWidth-8) x=e.clientX-tw-12;
+      if(x<8) x=8;
+      if(y<8) y=e.clientY+12;
+      if(y+th>window.innerHeight-8) y=window.innerHeight-th-8;
+      tip.style.left=x+"px";
+      tip.style.top=y+"px";
+      clearTimeout(tipTimer);
+      tipTimer=setTimeout(function(){tip.classList.remove("show")},2500);
+    });
+  });
 }
 
 drawEmpty();
